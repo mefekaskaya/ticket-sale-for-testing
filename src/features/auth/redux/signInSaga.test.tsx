@@ -1,4 +1,6 @@
-import { expectSaga } from "redux-saga-test-plan"; // expectSaga is used for integration test and testSaga is used for unit test.
+// adapted from https://redux-saga.js.org/docs/advanced/NonBlockingCalls/
+import { createMockTask } from "@redux-saga/testing-utils";
+import { expectSaga, testSaga } from "redux-saga-test-plan"; // expectSaga is used for integration test and testSaga is used for unit test.
 import * as matchers from "redux-saga-test-plan/matchers";
 import { StaticProvider, throwError } from "redux-saga-test-plan/providers";
 
@@ -65,7 +67,6 @@ describe("signInFlow", () => {
         .silentRun(25)
     );
   });
-  test.todo("successful sign up");
   test("successfull sign up", () => {
     return expectSaga(signInFlow)
       .provide(networkProviders)
@@ -101,7 +102,6 @@ describe("signInFlow", () => {
       .put(endSignIn())
       .silentRun(25);
   });
-  test.todo("sign-in error ");
   test("sign-in error", () => {
     return (
       expectSaga(signInFlow)
@@ -124,5 +124,27 @@ describe("signInFlow", () => {
         .put(endSignIn())
         .silentRun(25)
     );
+  });
+});
+
+describe("unit tests for fork cancellation", () => {
+  test("saga cancel flow", () => {
+    const task = createMockTask();
+    const saga = testSaga(signInFlow);
+    saga.next().take(signInRequest.type);
+    saga
+      .next({ type: "test", payload: signInRequestPayload })
+      .fork(authenticateUser, signInRequestPayload);
+    saga.next(task).take([cancelSignIn.type, endSignIn.type]);
+    saga.next(cancelSignIn()).cancel(task);
+  });
+  test("saga not cancel flow", () => {
+    const saga = testSaga(signInFlow);
+    saga.next().take(signInRequest.type);
+    saga
+      .next({ type: "test", payload: signInRequestPayload })
+      .fork(authenticateUser, signInRequestPayload);
+    saga.next().take([cancelSignIn.type, endSignIn.type]);
+    saga.next(endSignIn()).take(signInRequest.type);
   });
 });
