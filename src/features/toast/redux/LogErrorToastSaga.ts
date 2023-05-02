@@ -6,7 +6,7 @@ import { ToastOptions } from "../types";
 import { showToast } from "./toastSlice";
 
 // presumably this would send the toast to some analytics engine
-const logErrorToast = (title: string) => {
+export const sendToAnalytics = (title: string) => {
   // eslint-disable-next-line no-console
   console.error("Got error toast!", title);
 };
@@ -16,7 +16,7 @@ export function* logErrorToasts({
 }: PayloadAction<ToastOptions>): SagaIterator {
   const { title, status } = payload;
   if (status === "error") {
-    yield call(logErrorToast, title);
+    yield call(sendToAnalytics, title);
   }
   yield put(showToast({ title, status }));
 }
