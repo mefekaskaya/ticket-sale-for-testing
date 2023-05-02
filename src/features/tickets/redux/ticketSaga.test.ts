@@ -27,6 +27,7 @@ import {
   selectors,
   startTicketAbort,
   startTicketPurchase,
+  startTicketRelease,
 } from "./ticketSlice";
 
 const holdAction = {
@@ -162,4 +163,35 @@ describe("purchase to all flow", () => {
       .not.put(showToast({ title: "purchase cancelled", status: "warning" }))
       .run();
   });
+});
+
+describe("hold cancellation", () => {
+  test.each([
+    { name: "cancel", actionCreator: startTicketRelease },
+    { name: "abort", actionCreator: startTicketAbort },
+  ])(
+    "cancels hold and resets ticket transaction on $name",
+    ({ actionCreator }) => {
+      return expectSaga(ticketFlow, holdAction)
+        .provide(networkProviders)
+        .call(reserveTicketServerCall, holdReservation)
+        .dispatch(
+          actionCreator({ reason: "Abort", reservation: holdReservation })
+        )
+        .put(showToast({ title: "Abort", status: "warning" }))
+        .call(cancelTransaction, holdReservation)
+        .run();
+    }
+  );
+  // test("cancels hold and resets tickets transaction on cancel", () => {
+  //   return expectSaga(ticketFlow, holdAction)
+  //     .provide(networkProviders)
+  //     .call(reserveTicketServerCall, holdReservation)
+  //     .dispatch(
+  //       startTicketRelease({ reservation: holdReservation, reason: "Cancel" })
+  //     )
+  //     .put(showToast({ title: "Cancel", status: "warning" }))
+  //     .call(cancelTransaction, holdReservation)
+  //     .run();
+  // });
 });
