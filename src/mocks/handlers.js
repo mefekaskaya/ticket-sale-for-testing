@@ -12,4 +12,8 @@ export const handlers = [
     const { bandId } = req.params;
     return res(ctx.json({ band: bands[bandId] }));
   }),
+  rest.get(`${showsUrl}/:showId`, (req, res, ctx) => {
+    const { showId } = req.params;
+    return res(ctx.json({ show: shows[showId] }));
+  }),
 ];
