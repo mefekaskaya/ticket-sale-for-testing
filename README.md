@@ -5,8 +5,6 @@ react-testing-library and jest used for functional and unit testings
 
 Before you run the application or any test:
 
-npm start
-
 npm install
 To run all tests:
 npm test
