@@ -1,6 +1,17 @@
 import userEvent from "@testing-library/user-event";
+import {
+  DefaultRequestBody,
+  RequestParams,
+  ResponseComposition,
+  rest,
+  RestContext,
+  RestRequest,
+} from "msw";
 
 import { App } from "../../../App";
+import { baseUrl, endpoints } from "../../../app/axios/constants";
+import { handlers } from "../../../mocks/handlers";
+import { server } from "../../../mocks/server";
 import { getByRole, render, screen, waitFor } from "../../../test-utils";
 
 test.each([
@@ -85,3 +96,129 @@ test.each([
     expect(history.entries).toHaveLength(1);
   });
 });
+
+const signInFailure = (
+  req: RestRequest<DefaultRequestBody, RequestParams>,
+  res: ResponseComposition,
+  ctx: RestContext
+) => res(ctx.status(401));
+
+const signInServerFailure = (
+  req: RestRequest<DefaultRequestBody, RequestParams>,
+  res: ResponseComposition,
+  ctx: RestContext
+) => res(ctx.status(500));
+
+const signUpServerFailure = (
+  req: RestRequest<DefaultRequestBody, RequestParams>,
+  res: ResponseComposition,
+  ctx: RestContext
+) => res(ctx.status(500));
+
+const signUpFailure = (
+  req: RestRequest<DefaultRequestBody, RequestParams>,
+  res: ResponseComposition,
+  ctx: RestContext
+) => {
+  return res(
+    ctx.status(400),
+    ctx.json({
+      errorMessage: "email already in use",
+    })
+  );
+};
+
+test("unsuccessful sign in after successful sign in", async () => {
+  const errorHandler = rest.post(
+    `${baseUrl}/${endpoints.signIn}`,
+    signInFailure
+  );
+  server.resetHandlers(...handlers, errorHandler);
+
+  const { history } = render(<App />, { routeHistory: ["/tickets/1"] });
+  const emailField = screen.getByLabelText(/email/i);
+  const passwordField = screen.getByLabelText(/password/i);
+  userEvent.type(emailField, "test@test.com");
+  userEvent.type(passwordField, "iheartcheese");
+  const form = screen.getByTestId("sign-in-form");
+  const button = getByRole(form, "button", { name: /sign in/i });
+  userEvent.click(button);
+
+  server.resetHandlers();
+  userEvent.click(button);
+  await waitFor(() => {
+    expect(history.location.pathname).toBe("/tickets/1"); // after clicking sign up or sign in, history change asynchronously and that's why we wait history.location.pathname to update after the call has been returned as positive
+    expect(history.entries).toHaveLength(1);
+  });
+});
+
+test("server sign up error followed by successful sign up", async () => {
+  const errorHandler = rest.post(
+    `${baseUrl}/${endpoints.signUp}`,
+    signUpServerFailure
+  );
+  server.resetHandlers(...handlers, errorHandler);
+  const { history } = render(<App />, { routeHistory: ["/tickets/1"] });
+  const emailField = screen.getByLabelText(/email/i);
+  const passwordField = screen.getByLabelText(/password/i);
+  userEvent.type(emailField, "test@test.com");
+  userEvent.type(passwordField, "iheartcheese");
+  const form = screen.getByTestId("sign-in-form");
+  const button = getByRole(form, "button", { name: /sign up/i });
+  userEvent.click(button);
+
+  server.resetHandlers();
+  userEvent.click(button);
+  await waitFor(() => {
+    expect(history.location.pathname).toBe("/tickets/1");
+    expect(history.entries).toHaveLength(1);
+  });
+});
+
+test.each([
+  {
+    name: "sign in server",
+    errorMethod: signInServerFailure,
+    endpoint: endpoints.signIn,
+    buttonName: /sign in/i,
+  },
+  {
+    name: "sign in client",
+    errorMethod: signInFailure,
+    endpoint: endpoints.signIn,
+    buttonName: /sign in/i,
+  },
+  {
+    name: "sign up server",
+    errorMethod: signUpServerFailure,
+    endpoint: endpoints.signUp,
+    buttonName: /sign up/i,
+  },
+  {
+    name: "sign up cilent",
+    errorMethod: signUpFailure,
+    endpoint: endpoints.signUp,
+    buttonName: /sign up/i,
+  },
+])(
+  "$name error in request followed by success",
+  async ({ buttonName, errorMethod, endpoint }) => {
+    const errorHandler = rest.post(`${baseUrl}/${endpoint}`, errorMethod);
+    server.resetHandlers(...handlers, errorHandler);
+    const { history } = render(<App />, { routeHistory: ["/tickets/1"] });
+    const emailField = screen.getByLabelText(/email/i);
+    const passwordField = screen.getByLabelText(/password/i);
+    userEvent.type(emailField, "test@test.com");
+    userEvent.type(passwordField, "iheartcheese");
+    const actionForm = screen.getByTestId("sign-in-form");
+    const actionButton = getByRole(actionForm, "button", { name: buttonName });
+    userEvent.click(actionButton);
+
+    server.resetHandlers();
+    userEvent.click(actionButton);
+    await waitFor(() => {
+      expect(history.location.pathname).toBe("/tickets/1");
+      expect(history.entries).toHaveLength(1);
+    });
+  }
+);
